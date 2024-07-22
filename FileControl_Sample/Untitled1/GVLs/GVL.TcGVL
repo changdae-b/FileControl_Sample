@@ -1,0 +1,10 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1">
+  <GVL Name="GVL" Id="{e54cb9c3-5a83-43ca-9f25-d08fe2a27bdd}">
+    <Declaration><![CDATA[{attribute 'qualified_only'}
+VAR_GLOBAL
+	sPath : STRING := 'C:\SampleFile\Test.txt';
+	
+END_VAR]]></Declaration>
+  </GVL>
+</TcPlcObject>

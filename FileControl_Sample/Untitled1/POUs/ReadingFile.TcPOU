@@ -1,0 +1,105 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1">
+  <POU Name="ReadingFile" Id="{ce47be2d-aa40-4fdc-a38d-884b583b79f8}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM ReadingFile
+VAR
+	fbFileOpen : FB_FileOpen;
+	fbFileRead : FB_FileRead;
+	fbFileClose : FB_FileClose;
+	hFile : UINT;
+	sRead : T_MAXSTRING;
+	bStartRead : BOOL;
+	bReset : BOOL;
+	
+	eState : (init, FileOpen, FileRead, FileClose, TextFileToString , StringToINT , Error);
+	i : INT;
+	
+	NewLineCount : INT;
+	sTemp : ARRAY[1..MAX_LENGTH] OF STRING;
+	nINT : ARRAY[1..MAX_LENGTH] OF INT;
+	nTemp : INT;
+END_VAR
+
+VAR CONSTANT
+	MAX_LENGTH : INT := 20;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[CASE eState OF
+	init :
+		IF bStartRead THEN
+			bStartRead := FALSE;
+			eState := FileOpen;
+		END_IF
+		
+	FileOpen :
+		fbFileOpen(
+			sPathName:= GVL.sPath, 
+			nMode:= FOPEN_MODEREAD OR FOPEN_MODETEXT, 
+			bExecute:= TRUE, 
+			hFile=> hFile);
+		IF NOT fbFileOpen.bBusy THEN
+			IF fbFileOpen.bError THEN
+				eState := Error;
+			ELSE
+				eState := FileRead;
+				MEMSET(ADR(sRead), 0, SIZEOF(sRead) );
+			END_IF
+			fbFileOpen(bExecute := FALSE);
+		END_IF
+		
+	FileRead : //fbFileRead로 값을 읽어 sRead에 값을 입력
+		fbFileRead(
+			hFile:= hFile, 
+			pReadBuff:=ADR(sRead) , 
+			cbReadLen:= SIZEOF(sRead), 
+			bExecute:= TRUE);
+		IF NOT fbFileRead.bBusy THEN
+			IF fbFileRead.bError THEN
+				eState := Error;
+			ELSE
+				eState := FileClose;
+			END_IF
+			fbFileRead(bExecute := FALSE);
+		END_IF
+	
+	FileClose :
+		fbFileClose(
+			hFile:= hFile, 
+			bExecute:= TRUE);
+		IF NOT fbFileClose.bBusy THEN
+			IF fbFileClose.bError THEN
+				eState := Error;
+			ELSE
+				eState := TextFileToString;
+			END_IF
+			fbFileClose(bExecute := false);
+		END_IF
+	
+	TextFileToString: //sRead에서 $N을 기준으로 값들을 나누고 sTemp에 각각 값을 넣음  
+		MEMSET(ADR(sTemp), 0, SIZEOF(sTemp));
+		FOR i:=0 TO SIZEOF(sRead) - 2 BY 1 DO
+			IF sRead[i] = 10 THEN //$N
+				NewLineCount := NewLineCount + 1;
+				sTemp[NewLineCount] := MID(sRead,i - nTemp , nTemp + 1);
+				nTemp := i+1;
+			END_IF
+		END_FOR
+		nTemp := 0;
+		NewLineCount := 0;
+		eState := StringToINT;		
+		
+	StringToINT: //String인 sTemp값을 INT값으로 바꿔 nINT에 넣음 
+		FOR i:=1 TO MAX_LENGTH BY 1 DO
+			nINT[i] := STRING_TO_INT(sTemp[i]);
+		END_FOR
+		eState := init;
+		
+	Error :
+		IF bReset THEN
+			bReset := FALSE;
+			eState := init;
+		END_IF
+END_CASE]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

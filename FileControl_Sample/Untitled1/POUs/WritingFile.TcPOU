@@ -1,0 +1,80 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1">
+  <POU Name="WritingFile" Id="{659902d9-2df7-4bbe-9885-17e846f31178}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM WritingFile
+VAR
+	fbFileOpen : FB_FileOpen;
+	fbFileWrite : FB_FileWrite;
+	fbFileClose : FB_FileClose;
+	sWrite : T_MAXSTRING := '1$N22$N33$N1234$N';
+	(*  $N = LF -> NewLine (줄바꾸기) *)
+	hFile : UINT;
+ 	
+	bStartWrite : BOOL;
+	bReset : BOOL;
+	
+	eState : (init, FileOpen, FileWrite, FileClose, Error);
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[CASE eState OF
+	Init:
+		IF bStartWrite THEN
+			bStartWrite := FALSE;
+			eState := FileOpen;
+		END_IF
+		
+	FileOpen:
+		fbFileOpen(
+					sNetId:= , 
+					sPathName:= GVL.sPath, 
+					nMode:= FOPEN_MODEWRITE OR FOPEN_MODETEXT, 
+					bExecute:= TRUE,  
+					hFile=> hFile);
+		IF NOT fbFileOpen.bBusy THEN
+			IF fbFileOpen.bError THEN
+				eState := Error;
+			ELSE
+				eState := FileWrite;
+			END_IF
+			fbFileOpen(bExecute := FALSE);	
+		END_IF
+		
+	FileWrite:
+		fbFileWrite(
+			hFile:= hFile, 
+			pWriteBuff:= ADR(sWrite), 
+			cbWriteLen:= SIZEOF(sWrite), 
+			bExecute:= TRUE);
+		IF NOT fbFileWrite.bBusy THEN
+			IF fbFileWrite.bError THEN
+				eState := Error;
+			ELSE
+				eState := FileClose;	
+			END_IF
+			fbFileWrite(bExecute := FALSE);
+		END_IF
+		
+	FileClose:
+		fbFileClose(
+			hFile:= hFile, 
+			bExecute:= TRUE, 
+			);
+		IF NOT fbFileClose.bBusy THEN
+			IF fbFileClose.bError THEN
+				eState := Error;
+			ELSE
+				eState := Init;
+			END_IF
+			fbFileClose(bExecute := FALSE);
+		END_IF
+		
+	Error: 
+		IF bReset THEN
+			eState := init;
+			bReset := FALSE;
+		END_IF
+END_CASE]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>
